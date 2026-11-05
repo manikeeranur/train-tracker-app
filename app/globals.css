@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f8f9fc;
+  --surface: #ffffff;
+  --surface-2: #f0f2f7;
+  --ink: #141822;
+  --muted: #5d6474;
+  --line: #e3e6ee;
+  --accent: #0b7a5c;
+  --accent-ink: #ffffff;
+  --accent-soft: #dff1ea;
+  --warn: #a85d00;
+  --warn-soft: #fbeedb;
+  --danger: #b42318;
+  --danger-soft: #fde7e5;
+  --info: #2457c5;
+  --info-soft: #e3ebfc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1215;
+    --surface: #171b20;
+    --surface-2: #1f242a;
+    --ink: #eceae4;
+    --muted: #9aa2ad;
+    --line: #2a3037;
+    --accent: #34c08f;
+    --accent-ink: #06231a;
+    --accent-soft: #123327;
+    --warn: #f0a648;
+    --warn-soft: #342513;
+    --danger: #f2756a;
+    --danger-soft: #3a1714;
+    --info: #7ea4f5;
+    --info-soft: #18233b;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+@utility card {
+  @apply rounded-2xl border border-line bg-surface;
+}
+@utility field {
+  @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[15px] text-ink outline-none transition placeholder:text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent/25;
+}
+@utility label {
+  @apply mb-1.5 block text-xs font-medium tracking-wide text-muted uppercase;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-accent text-accent-ink hover:brightness-110;
+}
+@utility btn-ghost {
+  @apply btn border border-line bg-surface text-ink hover:bg-surface-2;
+}
+@utility btn-danger {
+  @apply btn border border-danger/30 bg-danger-soft text-danger hover:brightness-95;
+}
+@utility chip {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+}

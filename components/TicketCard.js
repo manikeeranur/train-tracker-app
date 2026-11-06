@@ -46,7 +46,11 @@ export default function TicketCard({ p, now, past = false }) {
   const rel = relDay(p.journey_date, now);
 
   const d = p.journey_date && /^\d{4}-\d{2}-\d{2}$/.test(p.journey_date) ? new Date(`${p.journey_date}T00:00:00Z`) : null;
-  const nextDay = d && /^\d{4}-\d{2}-\d{2}$/.test(p.arrival_date || "") ? Math.round((Date.parse(p.arrival_date) - d.getTime()) / 864e5) : 0;
+  // IRCTC style: date under each time ("Sat, 07 Nov") instead of a "+1" marker.
+  const shortDate = (iso) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(iso || "")
+      ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", timeZone: "UTC" })
+      : "";
 
   // Live tracking only while the train can actually be running: travel day, or still en route next day.
   const today = new Date(now + 330 * 60000).toISOString().slice(0, 10);
@@ -115,6 +119,7 @@ export default function TicketCard({ p, now, past = false }) {
           <div className="min-w-0">
             <p className="text-xl font-bold tracking-tight whitespace-nowrap tabular-nums">{p.dep_time ? fmt12(p.dep_time) : "--:--"}</p>
             <p className="truncate text-sm"><span className="font-semibold">{p.from_code || "—"}</span> <span className="hidden text-muted sm:inline">{p.from_name}</span></p>
+            {shortDate(p.journey_date) && <p className="text-xs text-muted">{shortDate(p.journey_date)}</p>}
           </div>
           <div className="flex flex-col items-center gap-1 text-[11px] text-muted">
             <span className="font-medium">{p.duration || ""}</span>
@@ -130,9 +135,9 @@ export default function TicketCard({ p, now, past = false }) {
           <div className="min-w-0 text-right">
             <p className="text-xl font-bold tracking-tight whitespace-nowrap tabular-nums">
               {p.arr_time ? fmt12(p.arr_time) : "--:--"}
-              {nextDay > 0 && <sup className="ml-0.5 text-[10px] font-semibold text-muted" title={`Arrives ${p.arrival_date}`}>+{nextDay}</sup>}
             </p>
             <p className="truncate text-sm"><span className="hidden text-muted sm:inline">{p.to_name}</span> <span className="font-semibold">{p.to_code || "—"}</span></p>
+            {shortDate(p.arrival_date || p.journey_date) && <p className="text-xs text-muted">{shortDate(p.arrival_date || p.journey_date)}</p>}
           </div>
         </div>
 

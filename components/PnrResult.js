@@ -25,7 +25,6 @@ const BERTH = { LB: "Lower", MB: "Middle", UB: "Upper", SL: "Side lower", SU: "S
 export default function PnrResult({ pnr, data, provider, cached, ms }) {
   const n = normalisePnr(data);
   const overall = tone(n.passengers.map((p) => p.current).join(" "));
-  const nextDay = n.depDate && n.arrDate ? Math.round((Date.parse(n.arrDate) - Date.parse(n.depDate)) / 864e5) : 0;
   const fromName = STATION_MAP[n.from]?.name;
   const toName = STATION_MAP[n.to]?.name;
   const cnf = n.passengers.filter((p) => /CNF/i.test(p.current)).length;
@@ -91,7 +90,6 @@ export default function PnrResult({ pnr, data, provider, cached, ms }) {
           <div className="min-w-0 text-right">
             <p className="text-2xl font-bold tracking-tight whitespace-nowrap tabular-nums">
               {n.arrTime ? fmt12(n.arrTime) : "--:--"}
-              {nextDay > 0 && <sup className="ml-0.5 text-[10px] font-semibold text-muted">+{nextDay}</sup>}
             </p>
             <p className="truncate text-sm"><span className="hidden text-muted sm:inline">{toName}</span> <span className="font-semibold">{n.to || "—"}</span></p>
             {n.arrDate && <p className="text-xs text-muted">{fmtDate(n.arrDate)}</p>}

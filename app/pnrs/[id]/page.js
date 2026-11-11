@@ -11,7 +11,7 @@ export const metadata = { title: "PNR" };
 export default async function TrackedPnrPage({ params }) {
   const { id } = await params;
   const user = await requireUser(`/pnrs/${id}`);
-  const p = getTracked(user.id, Number(id));
+  const p = await getTracked(user.id, Number(id));
   if (!p) notFound();
   const n = p.normalised;
 

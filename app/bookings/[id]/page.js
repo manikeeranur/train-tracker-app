@@ -12,7 +12,7 @@ export const metadata = { title: "Booking" };
 export default async function BookingPage({ params }) {
   const { id } = await params;
   const user = await requireUser(`/bookings/${id}`);
-  const b = getBooking(user.id, Number(id));
+  const b = await getBooking(user.id, Number(id));
   if (!b) notFound();
 
   return (

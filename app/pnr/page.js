@@ -7,7 +7,7 @@ export const metadata = { title: "PNR status" };
 export default async function PnrPage({ searchParams }) {
   const { pnr = "" } = await searchParams;
   const clean = String(pnr).replace(/\D/g, "").slice(0, 10);
-  const b = clean.length === 10 ? findByPnr(clean) : null;
+  const b = clean.length === 10 ? await findByPnr(clean) : null;
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">PNR status</h1>

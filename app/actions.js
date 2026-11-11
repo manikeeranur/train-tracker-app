@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { db } from "@/lib/db";
+import { col, nextId, one } from "@/lib/db";
 import { createSession, destroySession, hashPassword, requireUser, verifyPassword } from "@/lib/auth";
 import { BookingError, cancelBooking, createBooking, runNow } from "@/lib/booking";
 
@@ -15,18 +15,22 @@ export async function signup(_prev, form) {
   const password = String(form.get("password") || "");
   if (!name || !/^\S+@\S+\.\S+$/.test(email)) return { error: "Enter your name and a valid email." };
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
-  if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) return { error: "An account with this email already exists." };
-  const { lastInsertRowid } = db
-    .prepare("INSERT INTO users (name, email, password_hash, created_at) VALUES (?, ?, ?, ?)")
-    .run(name, email, hashPassword(password), Date.now());
-  await createSession(Number(lastInsertRowid));
+  if (await one("users", { email })) return { error: "An account with this email already exists." };
+  const id = await nextId("users");
+  try {
+    await (await col("users")).insertOne({ id, name, email, password_hash: hashPassword(password), created_at: Date.now() });
+  } catch (err) {
+    if (err?.code === 11000) return { error: "An account with this email already exists." };
+    throw err;
+  }
+  await createSession(id);
   redirect(safeNext(form.get("next")));
 }
 
 export async function login(_prev, form) {
   const email = String(form.get("email") || "").trim().toLowerCase();
   const password = String(form.get("password") || "");
-  const user = db.prepare("SELECT id, password_hash FROM users WHERE email = ?").get(email);
+  const user = await one("users", { email }, { projection: { id: 1, password_hash: 1 } });
   if (!user || !verifyPassword(password, user.password_hash)) return { error: "Wrong email or password." };
   await createSession(user.id);
   redirect(safeNext(form.get("next")));
@@ -47,21 +51,27 @@ function readPassenger(form) {
   };
 }
 
+async function savePassenger(userId, p) {
+  await (await col("passengers")).insertOne({
+    id: await nextId("passengers"), user_id: userId, name: p.name, age: p.age, gender: p.gender,
+    berth_pref: p.berthPref, id_type: null, id_number: null, created_at: Date.now(),
+  });
+}
+
 export async function addPassenger(_prev, form) {
   const user = await requireUser("/passengers");
   const p = readPassenger(form);
   if (!p.name || !Number.isInteger(p.age) || p.age < 1 || p.age > 120 || !["M", "F", "T"].includes(p.gender)) {
     return { error: "Enter a valid name, age and gender." };
   }
-  db.prepare("INSERT INTO passengers (user_id, name, age, gender, berth_pref, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-    .run(user.id, p.name, p.age, p.gender, p.berthPref, Date.now());
+  await savePassenger(user.id, p);
   revalidatePath("/passengers");
   return { ok: true, at: Date.now() };
 }
 
 export async function deletePassenger(form) {
   const user = await requireUser("/passengers");
-  db.prepare("DELETE FROM passengers WHERE id = ? AND user_id = ?").run(Number(form.get("id")), user.id);
+  await (await col("passengers")).deleteOne({ id: Number(form.get("id")), user_id: user.id });
   revalidatePath("/passengers");
 }
 
@@ -81,7 +91,7 @@ export async function book(_prev, form) {
   }
   let id;
   try {
-    id = createBooking({
+    id = await createBooking({
       userId: user.id,
       trainId: String(form.get("train")),
       journeyDate: String(form.get("date")),
@@ -93,10 +103,13 @@ export async function book(_prev, form) {
       passengers,
     });
     if (form.get("save_passengers") === "on") {
-      const exists = db.prepare("SELECT 1 FROM passengers WHERE user_id = ? AND lower(name) = lower(?) AND age = ?");
-      const ins = db.prepare("INSERT INTO passengers (user_id, name, age, gender, berth_pref, created_at) VALUES (?, ?, ?, ?, ?, ?)");
+      const saved = await (await col("passengers")).find({ user_id: user.id }, { projection: { name: 1, age: 1 } }).toArray();
+      const key = (name, age) => `${name.trim().toLowerCase()}|${age}`;
+      const have = new Set(saved.map((s) => key(s.name, s.age)));
       for (const p of passengers) {
-        if (!exists.get(user.id, p.name.trim(), p.age)) ins.run(user.id, p.name.trim(), p.age, p.gender, p.berthPref, Date.now());
+        if (have.has(key(p.name, p.age))) continue;
+        have.add(key(p.name, p.age));
+        await savePassenger(user.id, { ...p, name: p.name.trim() });
       }
     }
   } catch (err) {
@@ -110,7 +123,7 @@ export async function cancel(form) {
   const user = await requireUser("/bookings");
   const id = Number(form.get("id"));
   try {
-    cancelBooking(user.id, id);
+    await cancelBooking(user.id, id);
   } catch (err) {
     if (!(err instanceof BookingError)) throw err;
   }
@@ -122,7 +135,7 @@ export async function runScheduledNow(form) {
   const user = await requireUser("/bookings");
   const id = Number(form.get("id"));
   try {
-    runNow(user.id, id);
+    await runNow(user.id, id);
   } catch (err) {
     if (!(err instanceof BookingError)) throw err;
   }
@@ -139,7 +152,7 @@ export async function importPnrs(_prev, form) {
   const results = [];
   // 1. Full tickets from IRCTC Booked Ticket History: details saved, no API call.
   const tickets = parseIrctcHistory(text).slice(0, 50);
-  saveParsed(user.id, tickets, label);
+  await saveParsed(user.id, tickets, label);
   const seen = new Set(tickets.map((t) => t.pnr));
   for (const t of tickets) results.push({ pnr: t.pnr, ok: true, msg: `${t.trainName} ${t.trainNo} · ${t.journeyDate}. Status loads automatically.` });
   // 2. Bare PNRs (typed, SMS, email): fetch status now.
@@ -164,7 +177,7 @@ export async function refreshTracked(form) {
 export async function untrack(form) {
   const user = await requireUser("/pnrs");
   const { untrackPnr } = await import("@/lib/pnrs");
-  untrackPnr(user.id, Number(form.get("id")));
+  await untrackPnr(user.id, Number(form.get("id")));
   revalidatePath("/bookings");
   redirect("/bookings");
 }
@@ -182,7 +195,7 @@ export async function namePassenger(form) {
   const { setPassengerName } = await import("@/lib/pnrs");
   const n = Number(form.get("n"));
   if (!Number.isInteger(n) || n < 1 || n > 12) return;
-  setPassengerName(user.id, Number(form.get("id")), n, form.get("name"));
+  await setPassengerName(user.id, Number(form.get("id")), n, form.get("name"));
   revalidatePath("/bookings");
 }
 

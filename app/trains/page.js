@@ -14,7 +14,7 @@ export default async function TrainsPage({ searchParams }) {
   const to = String(sp.to || "").toUpperCase();
   const date = isValidDate(sp.date) ? sp.date : addDays(today, 1);
   const quota = QUOTAS[sp.quota] ? sp.quota : "GN";
-  const results = searchTrains(from, to, date, quota);
+  const results = await searchTrains(from, to, date, quota);
   const qs = (extra) => new URLSearchParams({ from, to, date, quota, ...extra }).toString();
 
   return (

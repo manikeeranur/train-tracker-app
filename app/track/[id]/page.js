@@ -10,7 +10,7 @@ export const metadata = { title: "Track train" };
 export default async function TrackPage({ params }) {
   const { id } = await params;
   const user = await requireUser(`/track/${id}`);
-  const p = getTracked(user.id, Number(id));
+  const p = await getTracked(user.id, Number(id));
   if (!p) notFound();
   if (!p.train_no) {
     return (

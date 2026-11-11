@@ -3,7 +3,7 @@ import AutoSync from "./AutoSync";
 import PnrImport from "./PnrImport";
 import TicketCard from "./TicketCard";
 import TrainIcon from "./TrainIcon";
-import { db } from "@/lib/db";
+import { many } from "@/lib/db";
 import { isConfigured } from "@/lib/live";
 import { apiUsage, listTracked, staleIds } from "@/lib/pnrs";
 import { currentTime, fmt12, fmtDate, todayIST } from "@/lib/time";
@@ -11,10 +11,12 @@ import { currentTime, fmt12, fmtDate, todayIST } from "@/lib/time";
 export default async function RealTickets({ userId, add = "" }) {
   const now = currentTime();
   const today = todayIST(now);
-  const all = listTracked(userId);
-  const stale = staleIds(userId).length;
-  const usage = apiUsage();
-  const savedNames = db.prepare("SELECT name FROM passengers WHERE user_id = ? ORDER BY name").all(userId).map((r) => r.name);
+  const all = await listTracked(userId);
+  const [stale, usage, savedNames] = await Promise.all([
+    staleIds(userId).then((ids) => ids.length),
+    apiUsage(),
+    many("passengers", { user_id: userId }, { sort: { name: 1 }, projection: { name: 1 } }).then((rows) => rows.map((r) => r.name)),
+  ]);
 
   const isPast = (p) => p.journey_date && /^\d{4}-\d{2}-\d{2}$/.test(p.journey_date) && (p.arrival_date || p.journey_date) < today;
   const byDate = (a, b) => (a.journey_date || "9999").localeCompare(b.journey_date || "9999") || (a.dep_time || "").localeCompare(b.dep_time || "");

@@ -3,7 +3,7 @@ import { Empty } from "@/components/ui";
 import { deletePassenger } from "@/app/actions";
 import { requireUser } from "@/lib/auth";
 import { BERTH_LABELS } from "@/lib/data";
-import { db } from "@/lib/db";
+import { many } from "@/lib/db";
 
 export const metadata = { title: "Passengers" };
 
@@ -11,7 +11,7 @@ const GENDER = { M: "Male", F: "Female", T: "Transgender" };
 
 export default async function PassengersPage() {
   const user = await requireUser("/passengers");
-  const list = db.prepare("SELECT * FROM passengers WHERE user_id = ? ORDER BY name").all(user.id);
+  const list = await many("passengers", { user_id: user.id }, { sort: { name: 1 } });
   return (
     <div className="space-y-6">
       <div>

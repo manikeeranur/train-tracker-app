@@ -5,7 +5,7 @@ import { Availability, inr } from "@/components/ui";
 import { CLASSES, QUOTAS, STATION_MAP } from "@/lib/data";
 import { requireUser } from "@/lib/auth";
 import { MAX_PASSENGERS } from "@/lib/booking";
-import { db } from "@/lib/db";
+import { many } from "@/lib/db";
 import { availability, bookingWindow, fareFor, getTrain, originDate, runsOn, segment } from "@/lib/rail";
 import { currentTime, fmtClock, fmtDate, fmtDateTime, fmtDuration, isValidDate } from "@/lib/time";
 
@@ -26,12 +26,11 @@ export default async function BookPage({ searchParams }) {
 
   const now = currentTime();
   const win = bookingWindow(train, date, seg.from.code, classCode, quota);
-  const av = availability(train, originDate(date, seg.from), classCode, quota, now);
+  const av = await availability(train, originDate(date, seg.from), classCode, quota, now);
   const c = { ...av, closed: now >= win.closesAt, notYetOpen: now < win.opensAt };
-  const saved = db
-    .prepare("SELECT id, name, age, gender, berth_pref FROM passengers WHERE user_id = ? ORDER BY name")
-    .all(user.id)
-    .map((p) => ({ ...p }));
+  const saved = await many("passengers", { user_id: user.id }, {
+    sort: { name: 1 }, projection: { id: 1, name: 1, age: 1, gender: 1, berth_pref: 1 },
+  });
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">

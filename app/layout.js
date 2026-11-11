@@ -21,10 +21,8 @@ export const viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8f9fc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f1215" },
-  ],
+  themeColor: "#f8f9fc",
+  colorScheme: "only light",
 };
 
 const NAV = [

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "site.manikandan.railgo",
+      "sha256_cert_fingerprints": [
+        "FF:21:02:5F:4D:1E:5D:3D:48:88:B1:C2:E5:C7:5C:B0:BE:7B:F1:FE:29:81:AA:45:C0:C6:87:76:EF:FE:21:83"
+      ]
+    }
+  }
+]

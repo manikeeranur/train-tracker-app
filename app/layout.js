@@ -1,5 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import BottomNav from "@/components/BottomNav";
+import PwaRegister from "@/components/PwaRegister";
 import { getUser } from "@/lib/auth";
 import { logout } from "./actions";
 import "./globals.css";
@@ -10,6 +12,19 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata = {
   title: { default: "RailGo", template: "%s · RailGo" },
   description: "Search trains, pick berths, add passengers and auto-book the second the window opens.",
+  applicationName: "RailGo",
+  appleWebApp: { capable: true, title: "RailGo", statusBarStyle: "default" },
+  formatDetection: { telephone: false },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8f9fc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f1215" },
+  ],
 };
 
 const NAV = [
@@ -24,18 +39,15 @@ export default async function RootLayout({ children }) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
-        <header className="sticky top-0 z-20 border-b border-line bg-bg/85 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-line bg-bg/85 backdrop-blur" style={{ paddingTop: "env(safe-area-inset-top)" }}>
           <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
             <Link href="/" className="flex items-center gap-2 font-bold tracking-tight">
-              <span className="grid size-8 place-items-center rounded-lg bg-accent text-accent-ink">
-                <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <rect x="5" y="3" width="14" height="14" rx="3" />
-                  <path d="M5 11h14M9 17l-2 4M15 17l2 4M9 14h.01M15 14h.01" />
-                </svg>
-              </span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icons/icon-192.png" alt="" width={32} height={32} className="size-8 rounded-lg" />
               <span className="text-lg">RailGo</span>
             </Link>
-            <nav className="-mx-1 flex flex-1 gap-1 overflow-x-auto text-sm">
+            <div className="flex-1 sm:hidden" />
+            <nav className="-mx-1 hidden flex-1 gap-1 overflow-x-auto text-sm sm:flex">
               {NAV.map(([href, label]) => (
                 <Link key={href} href={href} className="shrink-0 rounded-lg px-2.5 py-1.5 text-muted hover:bg-surface-2 hover:text-ink">
                   {label}
@@ -52,10 +64,12 @@ export default async function RootLayout({ children }) {
             )}
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:py-10">{children}</main>
-        <footer className="border-t border-line py-6 text-center text-xs text-muted">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-28 sm:py-10">{children}</main>
+        <footer className="hidden border-t border-line py-6 text-center text-xs text-muted sm:block">
           RailGo is an independent demo booking system with simulated trains and inventory. Not affiliated with Indian Railways or IRCTC.
         </footer>
+        <BottomNav />
+        <PwaRegister />
       </body>
     </html>
   );

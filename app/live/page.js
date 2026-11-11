@@ -6,6 +6,9 @@ import PnrResult from "@/components/PnrResult";
 import FareResults, { isFareList } from "@/components/FareResults";
 import StationInput from "@/components/StationInput";
 import TrainSearch from "@/components/TrainSearch";
+import { ToolGrid, ToolHeader } from "@/components/LiveTools";
+import { getUser } from "@/lib/auth";
+import { many } from "@/lib/db";
 import { STATION_MAP } from "@/lib/data";
 import { ENDPOINTS, PROVIDERS, SELECT_OPTIONS, fetchLive, isConfigured } from "@/lib/live";
 import { addDays, todayIST } from "@/lib/time";
@@ -33,13 +36,26 @@ export default async function LivePage({ searchParams }) {
   }
   const defaultDate = addDays(todayIST(), 1);
 
+  // Quick picks for live status: trains from your upcoming tickets.
+  const user = tab === "running" ? await getUser() : null;
+  const myTrains = user
+    ? [
+        ...new Map(
+          (await many("tracked_pnrs", { user_id: user.id, train_no: { $ne: null }, journey_date: { $gte: addDays(today, -1) } }, { projection: { train_no: 1, train_name: 1 }, sort: { journey_date: 1 } }))
+            .map((t) => [t.train_no, t])
+        ).values(),
+      ].slice(0, 6)
+    : [];
+  const tabs = Object.entries(ENDPOINTS)
+    .filter(([, e]) => !e.hidden)
+    .map(([k]) => k)
+    .sort((a, b) => (b === "running") - (a === "running"));
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Live rail info</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          Real Indian Railways data: PNR status, trains between stations, live running status and schedules.
-        </p>
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Live info</h1>
+        <p className="mt-0.5 text-xs text-muted sm:text-sm">Real Indian Railways data, updated live.</p>
       </div>
 
       {!isConfigured() && (
@@ -53,20 +69,31 @@ export default async function LivePage({ searchParams }) {
         </div>
       )}
 
-      <nav className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1">
-        {Object.entries(ENDPOINTS).filter(([, e]) => !e.hidden).sort(([a], [b]) => (b === "running") - (a === "running")).map(([k, e]) => (
-          <Link
-            key={k}
-            href={`/live?tab=${k}`}
-            className={`shrink-0 rounded-xl px-3.5 py-2 text-sm font-medium transition ${k === tab ? "bg-accent text-accent-ink" : "text-muted hover:bg-surface-2 hover:text-ink"}`}
-          >
-            {e.label}
-          </Link>
-        ))}
-      </nav>
+      <ToolGrid tabs={tabs} active={tab} />
+
+      <ToolHeader k={tab} />
 
       {tab === "running" ? (
-        <TrainSearch />
+        <div className="space-y-3">
+          <TrainSearch />
+          {myTrains.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted uppercase">Your trains</p>
+              <div className="flex flex-wrap gap-2">
+                {myTrains.map((t) => (
+                  <Link
+                    key={t.train_no}
+                    href={`/track/train?no=${t.train_no}&day=0`}
+                    className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2 text-xs ring-1 ring-line hover:ring-accent"
+                  >
+                    <span className="font-mono font-bold">{t.train_no}</span>
+                    <span className="max-w-[10rem] truncate text-muted">{t.train_name}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       ) : tab === "pnr" ? (
         <form className="mx-auto flex max-w-2xl flex-col gap-3 rounded-3xl bg-surface p-4 sm:flex-row sm:p-5">
           <input type="hidden" name="tab" value="pnr" />

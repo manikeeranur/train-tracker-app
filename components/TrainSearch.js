@@ -14,7 +14,7 @@ export default function TrainSearch({ no = "", day = "0", compact = false }) {
           placeholder="e.g. 12653"
           autoComplete="off"
           required
-          className="field font-mono text-lg tracking-[0.2em]"
+          className="field font-mono text-lg tracking-[0.2em] placeholder:font-sans placeholder:text-base placeholder:tracking-normal"
         />
       </div>
       <div className="flex gap-2">

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { trackRun } from "@/app/actions";
+import LiveTrain3D from "./LiveTrain3D";
+import { AlarmBell, AlarmChip, AlarmPicker, AlarmRinger, askNotificationPermission, useAlarm, useBeeper } from "./StationAlarm";
 import TrainIcon from "./TrainIcon";
 
 // Provider refresh. Each poll is one paid/free-quota API call, so not too often;
@@ -59,6 +61,12 @@ function DelayChip({ min }) {
 export default function LiveTracker({ trainNo, startDay, board, boardName, dest, destName }) {
   const [state, setState] = useState({ loading: true });
   const [showAll, setShowAll] = useState(false);
+  // Station alarm, saved per train run (train number + start day + today's date in IST).
+  const [alarmKey] = useState(() => `railgo-alarm-${trainNo}-${startDay}-${new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10)}`);
+  const [alarm, setAlarm] = useAlarm(alarmKey);
+  const beeper = useBeeper();
+  const [picker, setPicker] = useState(null); // station whose alarm sheet is open
+  const markFired = useCallback(() => alarm && setAlarm({ ...alarm, fired: true }), [alarm, setAlarm]);
   // Non-stop station groups (keyed by index of their first station) the user has opened.
   const [opened, setOpened] = useState(() => new Set());
   const [allOpen, setAllOpen] = useState(false);
@@ -68,6 +76,7 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
     return () => clearInterval(t);
   }, []);
   const hereRef = useRef(null);
+  const routeRef = useRef(null);
   const scrolled = useRef(false);
   // Train-number tracking (no boarding station): bring the train's current station into view once.
   useEffect(() => {
@@ -75,6 +84,48 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
     scrolled.current = true;
     hereRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
   });
+
+  // Place the moving train on the timeline track: interpolate the live km between the rendered
+  // stations (their track markers carry data-km). Positions the element directly, no re-render.
+  const trainRef = useRef(null);
+  const placeTrain = useCallback(() => {
+    const ol = routeRef.current;
+    const el = trainRef.current;
+    if (!ol || !el) return;
+    const km = ol.dataset.trainKm ? Number(ol.dataset.trainKm) : null;
+    const base = ol.getBoundingClientRect();
+    const pts = [...ol.querySelectorAll("[data-km]")]
+      .map((n) => {
+        const r = n.getBoundingClientRect();
+        return { km: Number(n.dataset.km), x: r.left + r.width / 2 - base.left, y: r.top + r.height / 2 - base.top };
+      })
+      .filter((q) => Number.isFinite(q.km));
+    if (km == null || pts.length < 2) {
+      el.style.display = "none";
+      return;
+    }
+    let p;
+    if (km <= pts[0].km) p = pts[0];
+    else if (km >= pts.at(-1).km) p = pts.at(-1);
+    else {
+      const j = pts.findIndex((q) => q.km > km);
+      const a = pts[j - 1];
+      const b = pts[j];
+      const f = b.km === a.km ? 0 : (km - a.km) / (b.km - a.km);
+      p = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+    }
+    el.style.display = "block";
+    el.style.left = `${p.x - 16}px`; // badge is 32px
+    el.style.top = `${p.y - 16}px`;
+  }, []);
+  useLayoutEffect(placeTrain);
+  useEffect(() => {
+    const ol = routeRef.current;
+    if (!ol) return;
+    const ro = new ResizeObserver(placeTrain);
+    ro.observe(ol);
+    return () => ro.disconnect();
+  }, [state.loading, placeTrain]);
 
   const load = useCallback(() => {
     return trackRun(trainNo, startDay)
@@ -114,6 +165,15 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
   // Live estimate between provider updates moves the train through the non-stop stations.
   const est = estimate(run, tick, state.fetchedAt);
   const kmNow = est ? est.km : run.kmDone;
+  // Read (from the DOM) by the layout effect that positions the timeline train; not started → origin.
+  const trainKm = kmNow ?? (run.started ? null : 0);
+  // How far the alarm station is (km by position, minutes by its expected arrival).
+  const alarmStn = alarm && run.stations.find((s) => s.code === alarm.code && s.name === alarm.name);
+  const alarmKm = alarmStn?.km != null && trainKm != null ? alarmStn.km - trainKm : null;
+  const alarmEta = alarmStn ? istMs(alarmStn.eta || alarmStn.sta, tick) : null;
+  const alarmMin = alarmEta != null ? (alarmEta - tick) / 60000 : null;
+  const openPicker = (s) => setPicker({ code: s.code, name: s.name, km: s.km, hasEta: Boolean(s.eta || s.sta) });
+  const showTrain = trainKm != null && run.stations.some((s) => s.km != null);
   const progress = est && run.kmTotal ? Math.min(100, (kmNow / run.kmTotal) * 100) : run.progress;
   const stations = est
     ? run.stations.map((s) => (s.nonStop && s.status === "upcoming" && s.km != null && s.km <= est.km ? { ...s, status: "passed" } : s))
@@ -162,6 +222,22 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
 
   return (
     <div className="space-y-4 sm:space-y-5">
+      <AlarmRinger alarm={alarm} kmToGo={alarmKm} minToGo={alarmMin} onFired={markFired} onStop={() => setAlarm(null)} beeper={beeper} />
+      <AlarmPicker
+        station={picker}
+        current={alarm}
+        onClose={() => setPicker(null)}
+        onClear={() => {
+          setAlarm(null);
+          setPicker(null);
+        }}
+        onSet={(o) => {
+          beeper.prime(); // unlock sound on this tap
+          askNotificationPermission();
+          setAlarm({ code: picker.code, name: picker.name, km: picker.km, mode: o.mode, value: o.value, fired: false });
+          setPicker(null);
+        }}
+      />
       {/* Position hero */}
       <section className="card overflow-hidden">
         <div className="space-y-3 p-4 sm:space-y-4 sm:p-5">
@@ -183,6 +259,13 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
                   </p>
                 ) : (
                   run.nextHint && <p className="text-xs font-medium text-info sm:text-sm">{run.nextHint.replace(/\b(\d{1,2}:\d{2})\b/, (t) => fmt12(t))}</p>
+                )}
+                {alarm ? (
+                  <div className="mt-1.5">
+                    <AlarmChip alarm={alarm} onEdit={() => alarmStn && openPicker(alarmStn)} onClear={() => setAlarm(null)} />
+                  </div>
+                ) : (
+                  <p className="mt-1 text-[11px] text-muted">Tap 🔔 on a station below to set an arrival alarm.</p>
                 )}
               </div>
             </div>
@@ -238,6 +321,21 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
         )}
       </section>
 
+      {/* 3D: the train on its track between station boards */}
+      {stations.some((s) => s.km != null) && (
+        <LiveTrain3D
+          stations={run.stations}
+          km={kmNow ?? 0}
+          moving={Boolean(est)}
+          nextName={(() => {
+            const n = est?.next || stations.find((s, i) => i > curIdx && !s.nonStop);
+            if (!n) return run.started ? null : `Starts from ${stations[0]?.name}`;
+            const away = n.km != null && kmNow != null ? Math.max(0, Math.round(n.km - kmNow)) : null;
+            return `Next: ${n.name}${away != null ? ` · ≈ ${away} km` : ""}`;
+          })()}
+        />
+      )}
+
       {/* Timeline */}
       <section className="card overflow-hidden">
         <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line px-4 py-3 sm:px-5 sm:py-4">
@@ -266,7 +364,15 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
           )}
         </div>
         {stations.length === 0 && <p className="px-5 py-6 text-sm text-muted">Route details aren&apos;t available for this train yet.</p>}
-        <ol className="py-2">
+        <ol ref={routeRef} data-train-km={trainKm ?? ""} className="relative py-2">
+          {showTrain && (
+            <li ref={trainRef} aria-hidden className="pointer-events-none absolute z-20 hidden" style={{ transition: "top 1s linear, left .3s" }}>
+              <span className="relative grid size-8 place-items-center rounded-full bg-info text-white ring-4 ring-surface">
+                {run.started && !run.liveDown && <span className="absolute inset-0 animate-ping rounded-full bg-info opacity-30" />}
+                <TrainIcon className="relative size-5" />
+              </span>
+            </li>
+          )}
           {trimmed && segFrom > 0 && (
             <li className="px-4 pb-1 sm:px-5">
               <button onClick={() => setShowAll(true)} className="w-full rounded-lg bg-surface-2 py-1.5 text-xs font-medium text-muted hover:text-ink">
@@ -327,7 +433,7 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
                     <div className="relative flex justify-center">
                       <span className={`absolute top-0 h-1/2 w-[3px] ${lineTop}`} />
                       <span className={`absolute bottom-0 h-1/2 w-[3px] ${lineBottom}`} />
-                      <span className={`relative z-10 size-1.5 self-center rounded-full ${passed ? "bg-info" : "bg-line"}`} />
+                      <span data-km={s.km ?? undefined} className={`relative z-10 size-1.5 self-center rounded-full ${passed ? "bg-info" : "bg-line"}`} />
                     </div>
                     <button
                       onClick={() => (allOpen ? null : toggleGroup(groupOf[i]))}
@@ -372,8 +478,8 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
                   <div className="relative flex justify-center">
                     {!first && <span className={`absolute top-0 h-1/2 w-[3px] rounded-b ${lineTop}`} />}
                     {!last && <span className={`absolute bottom-0 h-1/2 w-[3px] rounded-t ${lineBottom}`} />}
-                    <span className="relative z-10 self-center">
-                      {here ? (
+                    <span className="relative z-10 self-center" data-km={s.km ?? undefined}>
+                      {here && !showTrain ? (
                         <span className="relative grid size-8 place-items-center rounded-full bg-info text-white ring-4 ring-surface">
                           {run.started && !run.liveDown && <span className="absolute inset-0 animate-ping rounded-full bg-info opacity-30" />}
                           <TrainIcon className="relative size-5" />
@@ -407,11 +513,16 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
                         )}
                       </div>
                     </div>
-                    {mine && (
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold sm:px-2.5 sm:py-1 sm:text-[11px] ${passed ? "bg-surface-2 text-muted" : "bg-accent text-accent-ink"}`}>
-                        {isB ? "Board here" : "Get down here"}
-                      </span>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {mine && (
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold sm:px-2.5 sm:py-1 sm:text-[11px] ${passed ? "bg-surface-2 text-muted" : "bg-accent text-accent-ink"}`}>
+                          {isB ? "Board here" : "Get down here"}
+                        </span>
+                      )}
+                      {!passed && !here && (
+                        <AlarmBell name={s.name} active={Boolean(alarm && alarm.code === s.code && alarm.name === s.name)} onClick={() => openPicker(s)} />
+                      )}
+                    </div>
                   </div>
                 </div>
               </li>
@@ -439,3 +550,4 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
     </div>
   );
 }
+

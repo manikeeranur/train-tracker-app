@@ -19,7 +19,8 @@ const TABS = [
 
 function isActive(path, href) {
   if (href === "/") return path === "/" || path.startsWith("/trains") || (path.startsWith("/book") && !path.startsWith("/bookings"));
-  if (href === "/bookings") return path.startsWith("/bookings") || path.startsWith("/pnrs") || path.startsWith("/track");
+  if (href === "/bookings") return path.startsWith("/bookings") || path.startsWith("/pnrs") || (path.startsWith("/track") && !path.startsWith("/track/train"));
+  if (href === "/live") return path.startsWith("/live") || path.startsWith("/track/train");
   return path.startsWith(href);
 }
 

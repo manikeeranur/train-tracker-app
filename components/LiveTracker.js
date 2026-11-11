@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { trackRun } from "@/app/actions";
 import TrainIcon from "./TrainIcon";
 
@@ -24,6 +24,14 @@ function DelayChip({ min }) {
 export default function LiveTracker({ trainNo, startDay, board, boardName, dest, destName }) {
   const [state, setState] = useState({ loading: true });
   const [showAll, setShowAll] = useState(false);
+  const hereRef = useRef(null);
+  const scrolled = useRef(false);
+  // Train-number tracking (no boarding station): bring the train's current station into view once.
+  useEffect(() => {
+    if (board || scrolled.current || !hereRef.current) return;
+    scrolled.current = true;
+    hereRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+  });
 
   const load = useCallback(() => {
     return trackRun(trainNo, startDay)
@@ -97,6 +105,7 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
                 {run.started && !run.liveDown && <span className="absolute -top-1 -right-1 size-3 animate-ping rounded-full bg-info" />}
               </span>
               <div className="min-w-0">
+                {!board && run.trainName && <p className="truncate text-xs font-medium text-muted">{run.trainName}</p>}
                 <p className="text-[15px] leading-snug font-semibold tracking-tight sm:text-lg">{run.headline || (run.started ? `Near ${run.currentName}` : "Not started yet")}</p>
                 {run.subline && <p className="text-xs text-muted sm:text-sm">{run.subline}</p>}
                 {run.nextHint && <p className="text-xs font-medium text-info sm:text-sm">{run.nextHint.replace(/\b(\d{1,2}:\d{2})\b/, (t) => fmt12(t))}</p>}
@@ -202,7 +211,7 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
             const lineTop = i > 0 && i <= curIdx ? "bg-info" : "bg-line";
             const lineBottom = i < curIdx ? "bg-info" : "bg-line";
             return (
-              <li key={`${s.code || s.name}-${i}`}>
+              <li key={`${s.code || s.name}-${i}`} ref={here ? hereRef : undefined}>
                 {newDay && (
                   <div className="grid grid-cols-[62px_24px_1fr] items-center gap-2 px-3 py-1 sm:grid-cols-[88px_32px_1fr] sm:gap-3 sm:px-5">
                     <span />

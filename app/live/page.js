@@ -5,6 +5,7 @@ import DataView from "@/components/DataView";
 import PnrResult from "@/components/PnrResult";
 import FareResults, { isFareList } from "@/components/FareResults";
 import StationInput from "@/components/StationInput";
+import TrainSearch from "@/components/TrainSearch";
 import { STATION_MAP } from "@/lib/data";
 import { ENDPOINTS, PROVIDERS, SELECT_OPTIONS, fetchLive, isConfigured } from "@/lib/live";
 import { addDays, todayIST } from "@/lib/time";
@@ -13,14 +14,15 @@ export const metadata = { title: "Live rail info" };
 
 export default async function LivePage({ searchParams }) {
   const sp = await searchParams;
-  const tab = ENDPOINTS[sp.tab] && !ENDPOINTS[sp.tab].hidden ? sp.tab : "pnr";
+  const tab = ENDPOINTS[sp.tab] && !ENDPOINTS[sp.tab].hidden ? sp.tab : "running";
   const ep = ENDPOINTS[tab];
   const query = Object.fromEntries(ep.fields.map(([k]) => [k, String(sp[k] ?? "").trim().toUpperCase()]));
   const submitted = sp.go === "1";
   // Trains-between ignores the date upstream (date only filters running days here), so keep it out of the cache key.
   const fetchQuery =
     tab === "between" ? { from: query.from, to: query.to } : tab === "fare" ? { from: query.from, to: query.to, quota: query.quota || "GN" } : query;
-  const result = submitted ? await fetchLive(tab, fetchQuery) : null;
+  // Live running status has its own tracker page (/track/train), so no fetch here.
+  const result = submitted && tab !== "running" ? await fetchLive(tab, fetchQuery) : null;
   const today = todayIST();
   // Seat availability for the chosen date (one call returns every train + class).
   const seatDate = /^\d{4}-\d{2}-\d{2}$/.test(sp.date || "") ? sp.date : "";
@@ -52,7 +54,7 @@ export default async function LivePage({ searchParams }) {
       )}
 
       <nav className="flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1">
-        {Object.entries(ENDPOINTS).filter(([, e]) => !e.hidden).map(([k, e]) => (
+        {Object.entries(ENDPOINTS).filter(([, e]) => !e.hidden).sort(([a], [b]) => (b === "running") - (a === "running")).map(([k, e]) => (
           <Link
             key={k}
             href={`/live?tab=${k}`}
@@ -63,7 +65,9 @@ export default async function LivePage({ searchParams }) {
         ))}
       </nav>
 
-      {tab === "pnr" ? (
+      {tab === "running" ? (
+        <TrainSearch />
+      ) : tab === "pnr" ? (
         <form className="mx-auto flex max-w-2xl flex-col gap-3 rounded-3xl bg-surface p-4 sm:flex-row sm:p-5">
           <input type="hidden" name="tab" value="pnr" />
           <input type="hidden" name="go" value="1" />

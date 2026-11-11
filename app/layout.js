@@ -62,7 +62,7 @@ export default async function RootLayout({ children }) {
             )}
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-28 sm:py-10">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-28 sm:py-10">{children}</main>
         <footer className="hidden border-t border-line py-6 text-center text-xs text-muted sm:block">
           RailGo is an independent demo booking system with simulated trains and inventory. Not affiliated with Indian Railways or IRCTC.
         </footer>

@@ -16,6 +16,9 @@
   --danger-soft: #fde7e5;
   --info: #2457c5;
   --info-soft: #e3ebfc;
+  --rac: #8a6100;
+  --rac-bar: #f5b800;
+  --rac-soft: #fff4cc;
   /* Always light, even when the phone/OS is in dark mode. */
   color-scheme: only light;
 }
@@ -36,6 +39,9 @@
   --color-danger-soft: var(--danger-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  --color-rac: var(--rac);
+  --color-rac-bar: var(--rac-bar);
+  --color-rac-soft: var(--rac-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

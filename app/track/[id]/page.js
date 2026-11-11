@@ -29,13 +29,13 @@ export default async function TrackPage({ params }) {
   const startDay = ownRun ? -diff : 0;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <Link href="/bookings" className="text-sm text-muted hover:text-ink">← My bookings</Link>
+    <div className="mx-auto max-w-3xl space-y-4 sm:space-y-5">
+      <Link href="/bookings" className="text-xs text-muted hover:text-ink sm:text-sm">← My bookings</Link>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{p.train_name || "Train"} <span className="font-mono text-base font-normal text-muted">#{p.train_no}</span></h1>
-          <p className="text-sm text-muted">
+          <h1 className="text-lg font-bold tracking-tight sm:text-2xl">{p.train_name || "Train"} <span className="font-mono text-sm font-normal text-muted sm:text-base">#{p.train_no}</span></h1>
+          <p className="text-xs text-muted sm:text-sm">
             PNR <span className="font-mono text-ink">{p.pnr}</span>
             {p.from_code && p.to_code && <> · {p.from_code} → {p.to_code}</>}
             {iso && <> · {fmtDate(iso)}</>}
@@ -45,7 +45,7 @@ export default async function TrackPage({ params }) {
       </div>
 
       {!ownRun && iso && (
-        <p className="rounded-xl bg-info-soft px-4 py-3 text-sm text-info">
+        <p className="rounded-xl bg-info-soft px-3 py-2 text-xs text-info sm:px-4 sm:py-3 sm:text-sm">
           {diff > 0
             ? `Your train runs on ${fmtDate(iso)}. Showing where today's ${p.train_no} is right now.`
             : `Your journey on ${fmtDate(iso)} is over. Showing today's ${p.train_no}.`}

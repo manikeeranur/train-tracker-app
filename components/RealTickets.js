@@ -26,22 +26,22 @@ export default async function RealTickets({ userId, add = "", tab = "upcoming" }
   const thisMonth = upcoming.filter((p) => p.journey_date?.slice(0, 7) === today.slice(0, 7)).length;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5 sm:space-y-8">
       <datalist id="saved-passenger-names">
         {savedNames.map((n) => <option key={n} value={n} />)}
       </datalist>
       {/* Summary */}
       {all.length > 0 && (
         <section className="grid gap-3 sm:grid-cols-3">
-          <div className="card relative overflow-hidden p-5 sm:col-span-2">
-            <TrainIcon className="absolute -right-4 -bottom-6 size-36 text-accent opacity-10" />
-            <p className="text-xs font-medium tracking-wide text-muted uppercase">Next trip</p>
+          <div className="card relative overflow-hidden p-4 sm:col-span-2 sm:p-5">
+            <TrainIcon className="absolute -right-4 -bottom-6 size-24 text-accent opacity-10 sm:size-36" />
+            <p className="text-[11px] font-medium tracking-wide text-muted uppercase sm:text-xs">Next trip</p>
             {next ? (
               <>
-                <p className="mt-1 text-xl font-semibold tracking-tight">
+                <p className="mt-1 truncate text-base font-semibold tracking-tight sm:text-xl">
                   {next.from_code} → {next.to_code} <span className="font-normal text-muted">· {next.train_name}</span>
                 </p>
-                <p className="mt-1 text-sm text-muted">
+                <p className="mt-0.5 text-xs text-muted sm:mt-1 sm:text-sm">
                   {fmtDate(next.journey_date)} at <span className="text-ink">{fmt12(next.dep_time)}</span>
                   {next.boarding_name && ` from ${next.boarding_name}`}
                 </p>
@@ -50,16 +50,16 @@ export default async function RealTickets({ userId, add = "", tab = "upcoming" }
               <p className="mt-1 text-muted">No upcoming trips</p>
             )}
           </div>
-          <div className="card grid grid-cols-2 gap-2 p-5">
+          <div className="card grid grid-cols-[auto_auto_1fr] items-center gap-x-5 gap-y-2 p-4 sm:grid-cols-2 sm:p-5">
             <div>
-              <p className="text-3xl font-semibold tabular-nums">{upcoming.length}</p>
+              <p className="text-xl font-semibold tabular-nums sm:text-3xl">{upcoming.length}</p>
               <p className="text-xs text-muted">Upcoming</p>
             </div>
             <div>
-              <p className="text-3xl font-semibold tabular-nums">{thisMonth}</p>
+              <p className="text-xl font-semibold tabular-nums sm:text-3xl">{thisMonth}</p>
               <p className="text-xs text-muted">This month</p>
             </div>
-            <div className="col-span-2 mt-1">{isConfigured() && <AutoSync stale={stale} />}</div>
+            <div className="justify-self-end sm:col-span-2 sm:mt-1 sm:justify-self-start">{isConfigured() && <AutoSync stale={stale} />}</div>
           </div>
         </section>
       )}
@@ -72,9 +72,9 @@ export default async function RealTickets({ userId, add = "", tab = "upcoming" }
 
       {/* Add tickets */}
       <details className="group card" open={all.length === 0 || !!add}>
-        <summary className="flex cursor-pointer list-none items-center justify-between p-4 font-semibold">
+        <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-[15px] font-semibold sm:text-base">
           <span>+ Add tickets from IRCTC</span>
-          <span className="text-sm font-normal text-muted group-open:hidden">Paste PNRs or Booked Ticket History</span>
+          <span className="hidden text-sm font-normal text-muted group-open:hidden sm:inline">Paste PNRs or Booked Ticket History</span>
         </summary>
         <div className="border-t border-line p-4 pt-3">
           <PnrImport prefill={/^\d{10}$/.test(add) ? add : ""} />

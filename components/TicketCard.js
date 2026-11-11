@@ -3,6 +3,8 @@ import { refreshTracked } from "@/app/actions";
 import { normalisePnr } from "@/lib/pnrs";
 import { fmt12 } from "@/lib/time";
 import DeleteTicket from "./DeleteTicket";
+import SeatButton from "./SeatButton";
+import { layoutFor, parseSeat } from "@/lib/berth";
 import LiveStrip from "./LiveStrip";
 import TrainIcon from "./TrainIcon";
 import { inr } from "./ui";
@@ -42,6 +44,10 @@ function ago(ms, now) {
 export default function TicketCard({ p, now, past = false }) {
   const n = p.last_payload ? normalisePnr(JSON.parse(p.last_payload)) : null;
   const pax = n?.passengers ?? [];
+  // Berths to show in 3D (sleeper/AC classes, confirmed or RAC with a coach + berth).
+  const seatCls = p.class_code || n?.cls;
+  const seats = layoutFor(seatCls) ? pax.map((x) => parseSeat(x.current) || parseSeat(x.booking)).filter(Boolean) : [];
+  const seatNames = JSON.parse(p.passenger_names || "{}");
   const overall = pax.length ? pax.map((x) => x.current).join(" ") : p.booking_status;
   const tone = statusTone(overall);
   const rel = relDay(p.journey_date, now);
@@ -97,10 +103,10 @@ export default function TicketCard({ p, now, past = false }) {
               pax.map((x) => {
                 const t = statusTone(x.current || x.booking);
                 return (
-                  <span key={x.n} className={`rounded-md px-2 py-0.5 font-mono text-xs font-semibold ${t.bg} ${t.fg}`}>
+                  <Link key={x.n} href={`/pnrs/${p.id}#berth`} className={`rounded-md px-2 py-0.5 font-mono text-xs font-semibold ${t.bg} ${t.fg}`} title="See your berth in 3D">
                     {pax.length > 1 && <span className="mr-1 font-sans opacity-70">P{x.n}</span>}
                     {String(x.current || x.booking || "?").replaceAll("/", " - ")}
-                  </span>
+                  </Link>
                 );
               })
             ) : p.booking_status ? (
@@ -125,6 +131,7 @@ export default function TicketCard({ p, now, past = false }) {
               <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" /><circle cx="12" cy="10" r="2.4" /></svg>
             </Link>
           )}
+          {seats.length > 0 && <SeatButton cls={seatCls} passengers={pax} names={seatNames} coach={seats[0].coach} large />}
           <DeleteTicket id={p.id} pnr={p.pnr} large />
         </div>
       </div>
@@ -245,6 +252,7 @@ export default function TicketCard({ p, now, past = false }) {
               <button className="grid size-7 place-items-center rounded-lg text-sm transition hover:bg-surface-2 hover:text-ink" aria-label={`Refresh PNR ${p.pnr}`} title="Refresh status">↻</button>
             )}
           </form>
+          {seats.length > 0 && <SeatButton cls={seatCls} passengers={pax} names={seatNames} coach={seats[0].coach} />}
           <DeleteTicket id={p.id} pnr={p.pnr} />
           </div>
         </div>

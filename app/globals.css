@@ -23,6 +23,11 @@
   color-scheme: only light;
 }
 
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);

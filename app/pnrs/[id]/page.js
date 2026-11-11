@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import DataView from "@/components/DataView";
+import MyBerths from "@/components/MyBerths";
 import { refreshTracked, untrack } from "@/app/actions";
 import { requireUser } from "@/lib/auth";
 import { getTracked } from "@/lib/pnrs";
@@ -59,6 +60,14 @@ export default async function TrackedPnrPage({ params }) {
           {p.last_error && <span className="text-danger"> · Last error: {p.last_error}</span>}
         </p>
       </div>
+
+      {n?.passengers.length > 0 && (
+        <MyBerths
+          cls={p.class_code || n.cls}
+          passengers={n.passengers}
+          names={JSON.parse(p.passenger_names || "{}")}
+        />
+      )}
 
       <section className="card p-5">
         <h2 className="mb-3 font-semibold">Status history</h2>

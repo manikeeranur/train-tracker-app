@@ -14,7 +14,7 @@ const END = 1.6; // vestibule length at each end (door + washroom)
 const WALK = 1.8; // m/s
 const TURN = 1.6; // rad/s
 
-export default function CoachWalk3D({ cls, coach, seats }) {
+export default function CoachWalk3D({ cls, coach, seats, fill = false }) {
   // Rebuild the scene only when the seats actually change, not on every new array.
   const seatKey = JSON.stringify(seats);
   const host = useRef(null);
@@ -328,8 +328,8 @@ export default function CoachWalk3D({ cls, coach, seats }) {
   const pad = "grid size-11 place-items-center rounded-full bg-white/90 text-base font-bold text-ink shadow-md ring-1 ring-black/5 active:bg-accent active:text-white select-none";
 
   return (
-    <figure className="overflow-hidden rounded-2xl border border-line bg-[#dfe7f2]">
-      <div className="relative h-[58dvh] max-h-[520px] min-h-[320px]">
+    <figure className={`overflow-hidden rounded-2xl border border-line bg-[#dfe7f2] ${fill ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+      <div className={`relative ${fill ? "min-h-64 flex-1" : "h-[58dvh] max-h-[520px] min-h-[320px]"}`}>
         <div ref={host} className="absolute inset-0" aria-label={`Walk inside coach ${coach}`} role="img" />
         {state === "loading" && <p className="absolute inset-0 grid place-items-center text-sm text-muted">Boarding coach {coach}…</p>}
         {state === "nogl" && <p className="absolute inset-0 grid place-items-center px-6 text-center text-sm text-muted">3D isn&apos;t supported on this device. Use the seat map instead.</p>}

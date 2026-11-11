@@ -12,7 +12,7 @@ import { coachesOf, layoutFor } from "@/lib/berth";
  * or walk inside it; coaches you're in
  * are green and show your berths/seats highlighted.
  */
-export default function CoachPicker({ cls, groups }) {
+export default function CoachPicker({ cls, groups, fill = false }) {
   const mine = groups.map((g) => g.coach);
   const coaches = coachesOf(cls, mine);
   const [sel, setSel] = useState(mine[0]);
@@ -20,8 +20,9 @@ export default function CoachPicker({ cls, groups }) {
   const View = layoutFor(cls) ? BerthView3D : SeatView3D;
   const seats = groups.find((g) => g.coach === sel)?.seats ?? [];
 
+  // fill: stretch the view to the remaining height (inside the 80% seat sheet).
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 ${fill ? "flex min-h-0 flex-1 flex-col" : ""}`}>
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Coaches">
         {coaches.map((c) => {
           const isMine = mine.includes(c);
@@ -57,9 +58,11 @@ export default function CoachPicker({ cls, groups }) {
           ))}
         </div>
       </div>
-      {mode === "map" && <SeatMap key={sel} cls={cls} coach={sel} seats={seats} />}
-      {mode === "top" && <View key={sel} cls={cls} coach={sel} seats={seats} />}
-      {mode === "inside" && <CoachWalk3D key={sel} cls={cls} coach={sel} seats={seats} />}
+      <div className={fill ? "flex min-h-0 flex-1 flex-col" : ""}>
+        {mode === "map" && <SeatMap key={sel} cls={cls} coach={sel} seats={seats} fill={fill} />}
+        {mode === "top" && <View key={sel} cls={cls} coach={sel} seats={seats} fill={fill} />}
+        {mode === "inside" && <CoachWalk3D key={sel} cls={cls} coach={sel} seats={seats} fill={fill} />}
+      </div>
     </div>
   );
 }

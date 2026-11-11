@@ -25,8 +25,8 @@ export default function SeatButton({ cls, passengers, names, coach, large = fals
           <circle cx="6.5" cy="3.5" r="1" fill="currentColor" stroke="none" />
         </svg>
       </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title={`Your ${layoutFor(cls) ? "berth" : "seat"}${coach ? ` · Coach ${coach}` : ""}`}>
-        {open && <MyBerths cls={cls} passengers={passengers} names={names} heading={false} />}
+      <Sheet tall open={open} onClose={() => setOpen(false)} title={`Your ${layoutFor(cls) ? "berth" : "seat"}${coach ? ` · Coach ${coach}` : ""}`}>
+        {open && <MyBerths cls={cls} passengers={passengers} names={names} heading={false} fill />}
       </Sheet>
     </>
   );

@@ -25,7 +25,7 @@ function Tile({ n, type, mine, labelTop, compact }) {
 }
 
 /** 2D coach chart: every bay (or seat row) of one coach, your berths/seats highlighted. */
-export default function SeatMap({ cls, coach, seats }) {
+export default function SeatMap({ cls, coach, seats, fill = false }) {
   const ref = useRef(null);
   const mine = new Map(seats.map((s) => [s.berth, s]));
   const BL = layoutFor(cls);
@@ -48,7 +48,7 @@ export default function SeatMap({ cls, coach, seats }) {
     const per = BL.bay === 8 ? 3 : 2; // berths per main row
     const hasSide = BL.bay !== 4;
     return (
-      <div ref={ref} className="max-h-[60dvh] overflow-y-auto rounded-2xl bg-surface-2 p-2.5">
+      <div ref={ref} className={`overflow-y-auto rounded-2xl bg-surface-2 p-2.5 ${fill ? "min-h-0 flex-1" : "max-h-[60dvh]"}`}>
         <p className="mb-2 text-center text-[10px] font-semibold tracking-widest text-muted">⇡ DOOR · WASHROOM</p>
         <div className="space-y-2">
           {Array.from({ length: bays }, (_, b) => {
@@ -86,7 +86,7 @@ export default function SeatMap({ cls, coach, seats }) {
   if (SL) {
     const rows = Math.max(Math.ceil(SL.seats / SL.perRow), ...seats.map((s) => placeSeat(cls, s.berth)?.rows || 0));
     return (
-      <div ref={ref} className="max-h-[60dvh] overflow-y-auto rounded-2xl bg-surface-2 p-2.5">
+      <div ref={ref} className={`overflow-y-auto rounded-2xl bg-surface-2 p-2.5 ${fill ? "min-h-0 flex-1" : "max-h-[60dvh]"}`}>
         <p className="mb-2 text-center text-[10px] font-semibold tracking-widest text-muted">⇡ DOOR</p>
         <div className="space-y-1">
           {Array.from({ length: rows }, (_, r) => {

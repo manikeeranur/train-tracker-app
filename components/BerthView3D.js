@@ -89,7 +89,7 @@ function Bunk({ box, ox, side, number, type, mine, fade }) {
  * Walk-through 3D view of a whole coach (door to door) with the given passengers' berths
  * highlighted. seats: [{ label, berth, type?, status: "CNF" | "RAC" }], all in this coach.
  */
-export default function BerthView3D({ cls, coach, seats }) {
+export default function BerthView3D({ cls, coach, seats, fill = false }) {
   const places = seats.map((s) => ({ ...s, place: placeBerth(cls, s.berth, s.type) })).filter((s) => s.place);
   const home = places[0]?.place.bay ?? 1;
   const [rot, setRot] = useState({ x: 56, z: -30 });
@@ -152,7 +152,7 @@ export default function BerthView3D({ cls, coach, seats }) {
   const btn = "grid size-8 place-items-center rounded-full bg-surface text-sm font-semibold text-ink shadow-sm ring-1 ring-line disabled:opacity-40";
 
   return (
-    <figure className="overflow-hidden rounded-2xl border border-line bg-gradient-to-b from-[#eef3fb] to-surface">
+    <figure className={`overflow-hidden rounded-2xl border border-line bg-gradient-to-b from-[#eef3fb] to-surface ${fill ? "flex min-h-0 flex-1 flex-col" : ""}`}>
       <figcaption className="relative z-10 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 pt-3">
         <p className="text-sm font-semibold">
           Coach <span className="font-mono">{coach}</span>
@@ -163,7 +163,7 @@ export default function BerthView3D({ cls, coach, seats }) {
 
       {/* 3D coach */}
       <div
-        className="relative h-72 cursor-grab touch-none select-none active:cursor-grabbing sm:h-80"
+        className={`relative cursor-grab touch-none select-none active:cursor-grabbing ${fill ? "min-h-56 flex-1" : "h-72 sm:h-80"}`}
         style={{ perspective: 900 }}
         onPointerDown={onDown}
         onPointerMove={onMove}

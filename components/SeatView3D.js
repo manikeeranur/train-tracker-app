@@ -72,7 +72,7 @@ function Chair({ x, y, facesForward, number, type, mine }) {
  * Walk-through 3D view of a chair-car coach (2S / CC / EC) with the given seats highlighted.
  * seats: [{ label, berth: seatNumber, status }], all in this coach.
  */
-export default function SeatView3D({ cls, coach, seats }) {
+export default function SeatView3D({ cls, coach, seats, fill = false }) {
   const places = seats.map((s) => ({ ...s, place: placeSeat(cls, s.berth) })).filter((s) => s.place);
   const home = places[0]?.place.row ?? 1;
   const [rot, setRot] = useState({ x: 54, z: -28 });
@@ -130,7 +130,7 @@ export default function SeatView3D({ cls, coach, seats }) {
   const btn = "grid size-8 place-items-center rounded-full bg-surface text-sm font-semibold text-ink shadow-sm ring-1 ring-line disabled:opacity-40";
 
   return (
-    <figure className="overflow-hidden rounded-2xl border border-line bg-gradient-to-b from-[#eef3fb] to-surface">
+    <figure className={`overflow-hidden rounded-2xl border border-line bg-gradient-to-b from-[#eef3fb] to-surface ${fill ? "flex min-h-0 flex-1 flex-col" : ""}`}>
       <figcaption className="relative z-10 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 pt-3">
         <p className="text-sm font-semibold">
           Coach <span className="font-mono">{coach}</span>
@@ -140,7 +140,7 @@ export default function SeatView3D({ cls, coach, seats }) {
       </figcaption>
 
       <div
-        className="relative h-72 cursor-grab touch-none select-none active:cursor-grabbing sm:h-80"
+        className={`relative cursor-grab touch-none select-none active:cursor-grabbing ${fill ? "min-h-56 flex-1" : "h-72 sm:h-80"}`}
         style={{ perspective: 900 }}
         onPointerDown={onDown}
         onPointerMove={onMove}

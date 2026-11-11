@@ -8,7 +8,7 @@ export const has3D = (cls) => Boolean(layoutFor(cls) || seatLayoutFor(cls));
  * "Your berth / seat" section for a tracked PNR: one walk-through 3D coach per coach, with
  * every passenger in it highlighted. Renders nothing when no berth or seat is allotted yet.
  */
-export default function MyBerths({ cls, passengers, names = {}, heading = true }) {
+export default function MyBerths({ cls, passengers, names = {}, heading = true, fill = false }) {
   const berths = Boolean(layoutFor(cls));
   if (!berths && !seatLayoutFor(cls)) return null;
   const groups = new Map();
@@ -23,9 +23,9 @@ export default function MyBerths({ cls, passengers, names = {}, heading = true }
   if (!groups.size) return null;
   const noun = berths ? "berth" : "seat";
   return (
-    <section id="berth" className="scroll-mt-20 space-y-3">
+    <section id="berth" className={`scroll-mt-20 space-y-3 ${fill ? "flex min-h-0 flex-1 flex-col" : ""}`}>
       {heading && <h2 className="font-semibold tracking-tight">Your {noun}{passengers.length > 1 ? "s" : ""}</h2>}
-      <CoachPicker cls={cls} groups={[...groups.values()]} />
+      <CoachPicker cls={cls} groups={[...groups.values()]} fill={fill} />
     </section>
   );
 }

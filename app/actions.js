@@ -182,6 +182,21 @@ export async function untrack(form) {
   redirect("/bookings");
 }
 
+// Delete from the My bookings list (stays on the page).
+export async function deleteTracked(form) {
+  const user = await requireUser("/bookings");
+  const { untrackPnr } = await import("@/lib/pnrs");
+  await untrackPnr(user.id, Number(form.get("id")));
+  revalidatePath("/bookings");
+}
+
+export async function deleteCompletedTracked() {
+  const user = await requireUser("/bookings");
+  const { deleteCompleted } = await import("@/lib/pnrs");
+  await deleteCompleted(user.id);
+  revalidatePath("/bookings");
+}
+
 export async function syncMyPnrs() {
   const user = await requireUser("/pnrs");
   const { syncStale } = await import("@/lib/pnrs");

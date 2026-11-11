@@ -1,14 +1,15 @@
 import Link from "next/link";
 import AutoSync from "./AutoSync";
+import { DeleteCompleted } from "./DeleteTicket";
 import PnrImport from "./PnrImport";
 import TicketCard from "./TicketCard";
 import TrainIcon from "./TrainIcon";
 import { many } from "@/lib/db";
 import { isConfigured } from "@/lib/live";
-import { apiUsage, listTracked, staleIds } from "@/lib/pnrs";
+import { apiUsage, isCompleted, listTracked, staleIds } from "@/lib/pnrs";
 import { currentTime, fmt12, fmtDate, todayIST } from "@/lib/time";
 
-export default async function RealTickets({ userId, add = "" }) {
+export default async function RealTickets({ userId, add = "", tab = "upcoming" }) {
   const now = currentTime();
   const today = todayIST(now);
   const all = await listTracked(userId);
@@ -18,10 +19,9 @@ export default async function RealTickets({ userId, add = "" }) {
     many("passengers", { user_id: userId }, { sort: { name: 1 }, projection: { name: 1 } }).then((rows) => rows.map((r) => r.name)),
   ]);
 
-  const isPast = (p) => p.journey_date && /^\d{4}-\d{2}-\d{2}$/.test(p.journey_date) && (p.arrival_date || p.journey_date) < today;
   const byDate = (a, b) => (a.journey_date || "9999").localeCompare(b.journey_date || "9999") || (a.dep_time || "").localeCompare(b.dep_time || "");
-  const upcoming = all.filter((p) => !isPast(p)).sort(byDate);
-  const past = all.filter(isPast).sort((a, b) => byDate(b, a));
+  const upcoming = all.filter((p) => !isCompleted(p, now)).sort(byDate);
+  const past = all.filter((p) => isCompleted(p, now)).sort((a, b) => byDate(b, a));
   const next = upcoming.find((p) => p.journey_date);
   const thisMonth = upcoming.filter((p) => p.journey_date?.slice(0, 7) === today.slice(0, 7)).length;
 
@@ -81,7 +81,6 @@ export default async function RealTickets({ userId, add = "" }) {
         </div>
       </details>
 
-      {/* Upcoming */}
       {all.length === 0 ? (
         <div className="card flex flex-col items-center gap-3 px-6 py-14 text-center">
           <span className="grid size-16 place-items-center rounded-2xl bg-accent-soft text-accent"><TrainIcon className="size-10" /></span>
@@ -90,24 +89,40 @@ export default async function RealTickets({ userId, add = "" }) {
         </div>
       ) : (
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">Upcoming · {upcoming.length}</h2>
-          {upcoming.length === 0 ? (
-            <p className="text-sm text-muted">No upcoming trips.</p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <nav className="inline-flex rounded-xl bg-surface-2 p-1 text-sm" aria-label="Journeys">
+              {[
+                ["upcoming", "Upcoming", upcoming.length],
+                ["completed", "Completed", past.length],
+              ].map(([key, label, count]) => (
+                <Link
+                  key={key}
+                  href={key === "upcoming" ? "/bookings" : "/bookings?tab=completed"}
+                  aria-current={tab === key ? "page" : undefined}
+                  className={`rounded-lg px-3.5 py-1.5 font-medium transition ${tab === key ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
+                >
+                  {label} <span className="tabular-nums opacity-70">{count}</span>
+                </Link>
+              ))}
+            </nav>
+            {tab === "completed" && past.length > 0 && <DeleteCompleted count={past.length} />}
+          </div>
+          {tab === "upcoming" ? (
+            upcoming.length === 0 ? (
+              <p className="card px-5 py-8 text-center text-sm text-muted">No upcoming trips.</p>
+            ) : (
+              <div className="space-y-4">
+                {upcoming.map((p) => <TicketCard key={p.id} p={p} now={now} />)}
+              </div>
+            )
+          ) : past.length === 0 ? (
+            <p className="card px-5 py-8 text-center text-sm text-muted">No completed journeys yet.</p>
           ) : (
             <div className="space-y-4">
-              {upcoming.map((p) => <TicketCard key={p.id} p={p} now={now} />)}
+              {past.map((p) => <TicketCard key={p.id} p={p} now={now} past />)}
             </div>
           )}
         </section>
-      )}
-
-      {past.length > 0 && (
-        <details className="space-y-4">
-          <summary className="cursor-pointer text-sm font-semibold tracking-wide text-muted uppercase">Completed · {past.length}</summary>
-          <div className="mt-4 space-y-4">
-            {past.map((p) => <TicketCard key={p.id} p={p} now={now} past />)}
-          </div>
-        </details>
       )}
 
       {usage.length > 0 && (

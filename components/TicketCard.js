@@ -2,6 +2,7 @@ import Link from "next/link";
 import { refreshTracked } from "@/app/actions";
 import { normalisePnr } from "@/lib/pnrs";
 import { fmt12 } from "@/lib/time";
+import DeleteTicket from "./DeleteTicket";
 import LiveStrip from "./LiveStrip";
 import TrainIcon from "./TrainIcon";
 import { inr } from "./ui";
@@ -169,8 +170,11 @@ export default function TicketCard({ p, now, past = false }) {
               {n?.chartText && <span className={n.chartPrepared === 1 ? "text-accent" : ""}> · {n.chartText}</span>}
               {p.last_checked_at && <span> · {ago(p.last_checked_at, now)}</span>}
             </span>
-            <button className="grid size-7 place-items-center rounded-lg text-sm transition hover:bg-surface-2 hover:text-ink" aria-label={`Refresh PNR ${p.pnr}`} title="Refresh status">↻</button>
+            {!past && (
+              <button className="grid size-7 place-items-center rounded-lg text-sm transition hover:bg-surface-2 hover:text-ink" aria-label={`Refresh PNR ${p.pnr}`} title="Refresh status">↻</button>
+            )}
           </form>
+          <DeleteTicket id={p.id} pnr={p.pnr} />
         </div>
       </div>
     </article>

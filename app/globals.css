@@ -23,6 +23,32 @@
   color-scheme: only light;
 }
 
+/* Next-trip card: the train keeps running across its track. */
+@keyframes train-run {
+  from { left: -14rem; }
+  to { left: 100%; }
+}
+@keyframes cloud-drift {
+  from { left: 100%; }
+  to { left: -4rem; }
+}
+.cloud-drift { animation: cloud-drift 40s linear infinite; }
+@keyframes wheel-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes train-bob {
+  from { transform: translateY(0); }
+  to { transform: translateY(-0.6px); }
+}
+.train-run { animation: train-run 9s linear infinite; }
+.train-run .train-wheel { animation: wheel-spin 0.5s linear infinite; transform-box: fill-box; transform-origin: center; }
+.train-run .train-bob { animation: train-bob 0.3s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) {
+  .train-run { animation: none; left: auto; right: 1rem; }
+  .cloud-drift { animation: none; right: 30%; }
+  .train-run .train-wheel, .train-run .train-bob { animation: none; }
+}
+
 @keyframes sheet-up {
   from { transform: translateY(24px); opacity: 0; }
   to { transform: none; opacity: 1; }

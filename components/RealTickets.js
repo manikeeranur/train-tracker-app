@@ -3,6 +3,7 @@ import AutoSync from "./AutoSync";
 import { DeleteCompleted } from "./DeleteTicket";
 import PnrImport from "./PnrImport";
 import TicketCard from "./TicketCard";
+import TrainArt from "./TrainArt";
 import TrainIcon from "./TrainIcon";
 import { many } from "@/lib/db";
 import { isConfigured } from "@/lib/live";
@@ -33,8 +34,8 @@ export default async function RealTickets({ userId, add = "", tab = "upcoming" }
       {/* Summary */}
       {all.length > 0 && (
         <section className="grid gap-3 sm:grid-cols-3">
-          <div className="card relative overflow-hidden p-4 sm:col-span-2 sm:p-5">
-            <TrainIcon className="absolute -right-4 -bottom-6 size-24 text-accent opacity-10 sm:size-36" />
+          <div className="card relative overflow-hidden bg-gradient-to-br from-accent-soft/70 to-surface p-4 pb-16 sm:col-span-2 sm:p-5 sm:pr-56 sm:pb-5">
+            <TrainArt className="absolute right-3 bottom-2 w-48 sm:right-4 sm:bottom-3 sm:w-52" />
             <p className="text-[11px] font-medium tracking-wide text-muted uppercase sm:text-xs">Next trip</p>
             {next ? (
               <>

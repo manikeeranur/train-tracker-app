@@ -4,7 +4,7 @@ import { normalisePnr } from "@/lib/pnrs";
 import { fmt12 } from "@/lib/time";
 import DeleteTicket from "./DeleteTicket";
 import SeatButton from "./SeatButton";
-import { layoutFor, parseSeat } from "@/lib/berth";
+import { layoutFor, parseSeat, seatLayoutFor } from "@/lib/berth";
 import LiveStrip from "./LiveStrip";
 import TrainIcon from "./TrainIcon";
 import { inr } from "./ui";
@@ -44,9 +44,9 @@ function ago(ms, now) {
 export default function TicketCard({ p, now, past = false }) {
   const n = p.last_payload ? normalisePnr(JSON.parse(p.last_payload)) : null;
   const pax = n?.passengers ?? [];
-  // Berths to show in 3D (sleeper/AC classes, confirmed or RAC with a coach + berth).
+  // Berths / seats to show in 3D (sleeper, AC and chair-car classes; confirmed or RAC with a coach + number).
   const seatCls = p.class_code || n?.cls;
-  const seats = layoutFor(seatCls) ? pax.map((x) => parseSeat(x.current) || parseSeat(x.booking)).filter(Boolean) : [];
+  const seats = layoutFor(seatCls) || seatLayoutFor(seatCls) ? pax.map((x) => parseSeat(x.current) || parseSeat(x.booking)).filter(Boolean) : [];
   const seatNames = JSON.parse(p.passenger_names || "{}");
   const overall = pax.length ? pax.map((x) => x.current).join(" ") : p.booking_status;
   const tone = statusTone(overall);

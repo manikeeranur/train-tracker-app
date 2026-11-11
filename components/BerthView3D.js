@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BERTH_NAMES, placeBerth } from "@/lib/berth";
+import { BERTH_NAMES, layoutFor, placeBerth } from "@/lib/berth";
 
 // Scene units are px. x runs along the coach, y across it (window wall at y = 0), z is height.
 const W = 240; // bay length
@@ -112,9 +112,10 @@ export default function BerthView3D({ cls, coach, seats }) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  if (!places.length) return null;
-  const L = places[0].place.layout;
-  const bays = Math.max(...places.map((s) => s.place.bays));
+  // A coach can be shown with nobody of yours in it (coach picker), so the layout comes from the class.
+  const L = layoutFor(cls);
+  if (!L) return null;
+  const bays = Math.max(Math.ceil(L.berths / L.bay), ...places.map((s) => s.place.bays));
   const boxes = slots(L.bay);
   const sideFrom = L.bay === 4 ? 4 : L.bay - 2;
   const mineByBerth = new Map(places.map((s) => [s.berth, s]));
@@ -142,7 +143,7 @@ export default function BerthView3D({ cls, coach, seats }) {
   const scale = overview ? Math.min(1, 400 / total) : 1;
   const centre = overview ? total / 2 : bayX(focus) + W / 2;
 
-  const names = places.map((s) => `${s.label} · ${s.berth} ${BERTH_NAMES[s.place.type]}`).join("   ");
+  const names = places.length ? places.map((s) => `${s.label} · ${s.berth} ${BERTH_NAMES[s.place.type]}`).join("   ") : "No one from your ticket here";
   const lowestMine = {};
   for (const s of places) {
     const z = boxes[s.place.slot][4];

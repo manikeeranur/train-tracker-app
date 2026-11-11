@@ -257,10 +257,13 @@ export async function trackRun(trainNo, startDay) {
   }
   // Not started yet: live feed has no stations, so show the timetable instead (cached 24h).
   if (!run.stations.length) {
-    const { stationsFromSchedule } = await import("@/lib/track");
+    const { stationsFromSchedule, withNonStops } = await import("@/lib/track");
     const sched = await fetchLive("schedule", { train: String(trainNo) });
     if (!sched.error) {
       run.stations = stationsFromSchedule(sched.data);
+      // Fill in the stations between halts from a finished run (cached 24h).
+      const full = await fetchLive("route", { train: String(trainNo) });
+      if (!full.error) run.stations = withNonStops(run.stations, normaliseRun(full.data));
       run.fromSchedule = true;
       if (!run.kmTotal && run.stations.length) run.kmTotal = run.stations.at(-1).km;
       // Before departure the train is at its origin.

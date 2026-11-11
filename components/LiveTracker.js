@@ -4,7 +4,42 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { trackRun } from "@/app/actions";
 import TrainIcon from "./TrainIcon";
 
-const POLL_MS = 60e3;
+// Provider refresh. Each poll is one paid/free-quota API call, so not too often;
+// between polls the position is estimated (see estimate()).
+const POLL_MS = 180e3;
+const TICK_MS = 5e3;
+const IST = 330 * 60000;
+
+// "HH:MM" (IST) → epoch ms, picking the day closest to `ref`.
+function istMs(hhmm, ref) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ""));
+  if (!m || !ref) return null;
+  const d = new Date(ref + IST);
+  let t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), Number(m[1]), Number(m[2])) - IST;
+  if (t - ref > 12 * 3600e3) t -= 864e5;
+  else if (ref - t > 12 * 3600e3) t += 864e5;
+  return t;
+}
+
+/**
+ * Estimated position between provider updates: from the last reported km, move toward the
+ * next halt at the speed implied by its expected arrival. Never passes the next halt, and
+ * returns null when the train isn't running (not started, halted at a station, no data).
+ */
+function estimate(run, now, fetchedAt) {
+  if (!run?.started || run.liveDown || run.fromSchedule || run.kmDone == null) return null;
+  if (run.stations.some((s) => s.status === "current" && !s.nonStop)) return null;
+  if (/arrived|reached/i.test(run.headline || "")) return null;
+  const next = run.stations.find((s) => !s.nonStop && s.status !== "passed" && s.km != null && s.km > run.kmDone);
+  if (!next) return null;
+  const base = istMs(run.updatedTime, fetchedAt) ?? fetchedAt;
+  const eta = istMs(next.eta || next.sta, base);
+  let speed = eta && eta - base > 60e3 ? (next.km - run.kmDone) / (eta - base) : null; // km per ms
+  if (!speed || !Number.isFinite(speed) || speed <= 0) speed = 50 / 3600e3;
+  speed = Math.min(speed, 130 / 3600e3);
+  const km = Math.min(next.km - 0.5, run.kmDone + speed * Math.max(0, now - base));
+  return { km: Math.max(run.kmDone, km), next };
+}
 
 function fmt12(hhmm) {
   const m = String(hhmm || "").match(/^(\d{1,2}):(\d{2})/);
@@ -24,6 +59,14 @@ function DelayChip({ min }) {
 export default function LiveTracker({ trainNo, startDay, board, boardName, dest, destName }) {
   const [state, setState] = useState({ loading: true });
   const [showAll, setShowAll] = useState(false);
+  // Non-stop station groups (keyed by index of their first station) the user has opened.
+  const [opened, setOpened] = useState(() => new Set());
+  const [allOpen, setAllOpen] = useState(false);
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setTick(Date.now()), TICK_MS);
+    return () => clearInterval(t);
+  }, []);
   const hereRef = useRef(null);
   const scrolled = useRef(false);
   // Train-number tracking (no boarding station): bring the train's current station into view once.
@@ -67,7 +110,14 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
   const run = state.run;
   const isBoard = (s) => (board && s.code === board) || (boardName && norm(s.name).startsWith(norm(boardName).slice(0, 6)));
   const isDest = (s) => (dest && s.code === dest) || (destName && norm(s.name).startsWith(norm(destName).slice(0, 6)));
-  const stations = run.stations;
+  const nonStops = run.stations.filter((s) => s.nonStop).length;
+  // Live estimate between provider updates moves the train through the non-stop stations.
+  const est = estimate(run, tick, state.fetchedAt);
+  const kmNow = est ? est.km : run.kmDone;
+  const progress = est && run.kmTotal ? Math.min(100, (kmNow / run.kmTotal) * 100) : run.progress;
+  const stations = est
+    ? run.stations.map((s) => (s.nonStop && s.status === "upcoming" && s.km != null && s.km <= est.km ? { ...s, status: "passed" } : s))
+    : run.stations;
   // Where the train is: the last passed station, or an explicit "current" one.
   const curIdx = (() => {
     const c = stations.findIndex((s) => s.status === "current");
@@ -85,13 +135,30 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
   const destIdx = findIdx(dest, isDest);
   const boardStn = stations[boardIdx];
   const destStn = stations[destIdx];
-  const toBoard = boardIdx > curIdx ? boardIdx - Math.max(curIdx, 0) : 0;
-  const kmToBoard = boardStn?.km != null && run.kmDone != null ? Math.max(0, boardStn.km - run.kmDone) : null;
+  const toBoard = boardIdx > curIdx ? stations.slice(curIdx + 1, boardIdx + 1).filter((s) => !s.nonStop).length : 0;
+  const kmToBoard = boardStn?.km != null && kmNow != null ? Math.max(0, Math.round(boardStn.km - kmNow)) : null;
   // By default show only your part of the route (from the train's position or your boarding, to your destination).
   const segFrom = boardIdx !== -1 ? Math.max(0, Math.min(boardIdx, curIdx === -1 ? boardIdx : curIdx)) : 0;
   const segTo = destIdx !== -1 && destIdx >= segFrom ? destIdx : stations.length - 1;
   const trimmed = !showAll && (segFrom > 0 || segTo < stations.length - 1);
   const hidden = stations.length - (segTo - segFrom + 1);
+  // Runs of consecutive non-stop stations between two halts: groupOf[i] = index of the run's first station.
+  const groupOf = [];
+  const groupSize = {};
+  stations.forEach((st, i) => {
+    if (!st.nonStop) return;
+    const start = i > 0 && stations[i - 1].nonStop ? groupOf[i - 1] : i;
+    groupOf[i] = start;
+    groupSize[start] = (groupSize[start] || 0) + 1;
+  });
+  const isOpen = (g) => allOpen || opened.has(g) || (curIdx !== -1 && groupOf[curIdx] === g);
+  const toggleGroup = (g) =>
+    setOpened((prev) => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g);
+      else next.add(g);
+      return next;
+    });
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -107,8 +174,16 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
               <div className="min-w-0">
                 {!board && run.trainName && <p className="truncate text-xs font-medium text-muted">{run.trainName}</p>}
                 <p className="text-[15px] leading-snug font-semibold tracking-tight sm:text-lg">{run.headline || (run.started ? `Near ${run.currentName}` : "Not started yet")}</p>
-                {run.subline && <p className="text-xs text-muted sm:text-sm">{run.subline}</p>}
-                {run.nextHint && <p className="text-xs font-medium text-info sm:text-sm">{run.nextHint.replace(/\b(\d{1,2}:\d{2})\b/, (t) => fmt12(t))}</p>}
+                {/* The provider's "N kms to X" goes stale between updates; the estimate below replaces it. */}
+                {run.subline && !(est && /kms? to/i.test(run.subline)) && <p className="text-xs text-muted sm:text-sm">{run.subline}</p>}
+                {est ? (
+                  <p className="text-xs font-medium text-info tabular-nums sm:text-sm">
+                    ≈ {Math.max(0, Math.round(est.next.km - est.km))} km to {est.next.name}
+                    {(est.next.eta || est.next.sta) && ` · ${fmt12(est.next.eta || est.next.sta)}`}
+                  </p>
+                ) : (
+                  run.nextHint && <p className="text-xs font-medium text-info sm:text-sm">{run.nextHint.replace(/\b(\d{1,2}:\d{2})\b/, (t) => fmt12(t))}</p>
+                )}
               </div>
             </div>
             <div className="shrink-0 text-right">
@@ -117,17 +192,17 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
             </div>
           </div>
 
-          {run.progress != null && (
+          {progress != null && (
             <div>
               <div className="relative h-2 rounded-full bg-surface-2">
-                <div className="h-2 rounded-full bg-info transition-all" style={{ width: `${run.progress}%` }} />
-                <span className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-surface p-0.5 shadow" style={{ left: `${run.progress}%` }}>
+                <div className="h-2 rounded-full bg-info transition-all duration-1000" style={{ width: `${progress}%` }} />
+                <span className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-surface p-0.5 shadow" style={{ left: `${progress}%`, transition: "left 1s linear" }}>
                   <TrainIcon className="size-4 text-info" />
                 </span>
               </div>
               <div className="mt-2 flex justify-between gap-2 text-[10px] text-muted sm:text-xs">
                 <span className="truncate">{run.fromName}</span>
-                <span className="shrink-0">{run.kmDone != null ? `${run.kmDone} / ${run.kmTotal} km` : `${Math.round(run.progress)}%`}</span>
+                <span className="shrink-0 tabular-nums">{kmNow != null ? `${est ? "≈ " : ""}${Math.round(kmNow)} / ${run.kmTotal} km` : `${Math.round(progress)}%`}</span>
                 <span className="truncate text-right">{run.toName}</span>
               </div>
             </div>
@@ -169,10 +244,21 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
           <div>
             <h2 className="font-semibold tracking-tight">Route</h2>
             <p className="text-xs text-muted">
-              {stations.length} stops{run.kmTotal ? ` · ${run.kmTotal} km` : ""}
+              {run.stations.length - nonStops} stops{nonStops ? ` · ${nonStops} non-stop` : ""}{run.kmTotal ? ` · ${run.kmTotal} km` : ""}
               {run.fromSchedule ? " · scheduled timings" : " · live"}
             </p>
           </div>
+          {nonStops > 0 && (
+            <button
+              onClick={() => {
+                setAllOpen((v) => !v);
+                setOpened(new Set());
+              }}
+              className="rounded-lg bg-surface-2 px-2.5 py-1 text-[11px] font-medium text-muted hover:text-ink"
+            >
+              {allOpen ? "Collapse all" : "Show all stations"}
+            </button>
+          )}
           {run.fromSchedule && (
             <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[11px] text-muted">
               {run.liveDown ? "Live feed unavailable" : "Live positions start when the train departs"}
@@ -184,7 +270,7 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
           {trimmed && segFrom > 0 && (
             <li className="px-4 pb-1 sm:px-5">
               <button onClick={() => setShowAll(true)} className="w-full rounded-lg bg-surface-2 py-1.5 text-xs font-medium text-muted hover:text-ink">
-                Show {segFrom} earlier stop{segFrom === 1 ? "" : "s"}
+                Show {segFrom} earlier station{segFrom === 1 ? "" : "s"}
               </button>
             </li>
           )}
@@ -210,6 +296,52 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
             const newDay = i > 0 && (s.day ?? 0) > prevDay;
             const lineTop = i > 0 && i <= curIdx ? "bg-info" : "bg-line";
             const lineBottom = i < curIdx ? "bg-info" : "bg-line";
+            // Collapsed run of non-stop stations: one tappable row.
+            if (s.nonStop && !isOpen(groupOf[i])) {
+              if (groupOf[i] !== i) return null;
+              const n = groupSize[i];
+              return (
+                <li key={`ns-${i}`}>
+                  <div className="grid grid-cols-[62px_24px_1fr] gap-2 px-3 sm:grid-cols-[88px_32px_1fr] sm:gap-3 sm:px-5">
+                    <span />
+                    <div className="relative flex justify-center">
+                      <span className={`absolute inset-y-0 w-[3px] ${i <= curIdx ? "bg-info" : "bg-line"}`} />
+                    </div>
+                    <button
+                      onClick={() => toggleGroup(i)}
+                      aria-expanded="false"
+                      className="my-0.5 flex w-fit items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted hover:bg-surface-2 hover:text-ink sm:text-xs"
+                    >
+                      <span aria-hidden>▸</span> {n} station{n === 1 ? "" : "s"} · no stop
+                    </button>
+                  </div>
+                </li>
+              );
+            }
+            // Non-stop station: slim row, no timings.
+            if (s.nonStop && !here && !mine) {
+              return (
+                <li key={`${s.code || s.name}-${i}`}>
+                  <div className="grid grid-cols-[62px_24px_1fr] gap-2 px-3 sm:grid-cols-[88px_32px_1fr] sm:gap-3 sm:px-5">
+                    <span />
+                    <div className="relative flex justify-center">
+                      <span className={`absolute top-0 h-1/2 w-[3px] ${lineTop}`} />
+                      <span className={`absolute bottom-0 h-1/2 w-[3px] ${lineBottom}`} />
+                      <span className={`relative z-10 size-1.5 self-center rounded-full ${passed ? "bg-info" : "bg-line"}`} />
+                    </div>
+                    <button
+                      onClick={() => (allOpen ? null : toggleGroup(groupOf[i]))}
+                      title={allOpen ? undefined : "Collapse"}
+                      className={`flex min-w-0 items-center gap-1.5 py-1 text-left text-[11px] sm:text-xs ${passed ? "text-muted/70" : "text-muted"}`}
+                    >
+                      <span className="truncate">{s.name}</span>
+                      {s.code && <span className="shrink-0 font-mono text-[9px] opacity-70">{s.code}</span>}
+                      {s.km != null && <span className="shrink-0 opacity-70">· {s.km} km</span>}
+                    </button>
+                  </div>
+                </li>
+              );
+            }
             return (
               <li key={`${s.code || s.name}-${i}`} ref={here ? hereRef : undefined}>
                 {newDay && (
@@ -227,7 +359,7 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
                   <div className="py-2 text-right whitespace-nowrap tabular-nums sm:py-3">
                     {first ? (
                       <p className={`text-xs font-semibold sm:text-sm ${passed ? "text-muted" : ""}`}>{fmt12(dep) || "—"}</p>
-                    ) : (
+                    ) : s.nonStop ? null : (
                       <p className={`text-xs font-semibold sm:text-sm ${passed ? "text-muted" : ""}`}>{fmt12(arr) || "—"}</p>
                     )}
                     {!first && s.eta && s.sta && s.eta !== s.sta && <p className="text-[10px] text-muted line-through sm:text-[11px]">{fmt12(s.sta)}</p>}
@@ -270,7 +402,7 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
                         {s.delay != null && s.delay > 0 && <span className="rounded bg-warn-soft px-1.5 font-semibold text-warn">+{s.delay} min</span>}
                         {here && (
                           <span className="font-semibold text-info">
-                            {run.started ? "Train is here" : `Waiting to depart${s.std ? ` · ${fmt12(s.std)}` : ""}`}
+                            {s.nonStop ? "Running near here · no stop" : run.started ? "Train is here" : `Waiting to depart${s.std ? ` · ${fmt12(s.std)}` : ""}`}
                           </span>
                         )}
                       </div>
@@ -288,7 +420,7 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
           {trimmed && segTo < stations.length - 1 && (
             <li className="px-4 pt-1 sm:px-5">
               <button onClick={() => setShowAll(true)} className="w-full rounded-lg bg-surface-2 py-1.5 text-xs font-medium text-muted hover:text-ink">
-                Show {stations.length - 1 - segTo} later stop{stations.length - 1 - segTo === 1 ? "" : "s"}
+                Show {stations.length - 1 - segTo} later station{stations.length - 1 - segTo === 1 ? "" : "s"}
               </button>
             </li>
           )}
@@ -301,7 +433,7 @@ export default function LiveTracker({ trainNo, startDay, board, boardName, dest,
           )}
         </ol>
         <p className="border-t border-line px-4 py-3 text-[10px] text-muted sm:px-5 sm:text-[11px]">
-          {run.fromSchedule ? "Timetable" : `Live data from ${state.provider}`}. Crowd-sourced running status may vary; confirm at the station. Refreshes every minute.
+          {run.fromSchedule ? "Timetable" : `Live data from ${state.provider}`}. Crowd-sourced running status may vary; confirm at the station. Live position refreshes every 3 minutes; ≈ values are estimated in between.
         </p>
       </section>
     </div>
